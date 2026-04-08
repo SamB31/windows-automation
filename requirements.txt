@@ -1,0 +1,6 @@
+mss>=9.0.0
+pyautogui>=0.9.54
+Pillow>=10.0.0
+ollama>=0.4.0
+pygame>=2.5.0
+pyinstaller>=6.0.0
