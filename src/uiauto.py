@@ -67,21 +67,16 @@ class UIElement:
         return f"UIElement(name='{self.name}', type={self.control_type}, auto_id={self.auto_id})"
 
 
-def get_uiauto_backend():
-    """Get pywinauto backend, trying UIA first (better for modern Windows)."""
+def _get_backend_name() -> str:
+    """Get the best available pywinauto backend name."""
     pw = _get_pywinauto()
     if pw is None:
-        return None
-    
+        return "uia"
     try:
-        return pw.Application(backend="uia")
-    except Exception as e:
-        log.warning("UIA backend failed, trying win32: %s", e)
-        try:
-            return pw.Application(backend="win32")
-        except Exception as e2:
-            log.warning("win32 backend also failed: %s", e2)
-            return None
+        pw.Desktop(backend="uia")
+        return "uia"
+    except Exception:
+        return "win32"
 
 
 def get_all_elements() -> list[UIElement]:
@@ -94,12 +89,8 @@ def get_all_elements() -> list[UIElement]:
         return []
     
     try:
-        app = get_uiauto_backend()
-        if app is None:
-            return []
-        
-        # Connect to the desktop to enumerate windows
-        desktop = pw.Desktop(backend="uia" if app.backend == "uia" else "win32")
+        backend = _get_backend_name()
+        desktop = pw.Desktop(backend=backend)
         
         # Get all top-level windows
         windows = desktop.windows()
@@ -111,7 +102,7 @@ def get_all_elements() -> list[UIElement]:
                 title = ""
                 try:
                     title = win.window_text()
-                except:
+                except Exception:
                     pass
                 
                 if "oobe-automator" in title.lower() or "overlay" in title.lower():
@@ -150,37 +141,37 @@ def _collect_elements(parent, elements: list, depth: int, max_depth: int):
                 
                 try:
                     name = child.window_text() or ""
-                except:
+                except Exception:
                     pass
                 
                 try:
                     ctrl_type = child.control_type() if hasattr(child, 'control_type') else ""
-                except:
+                except Exception:
                     try:
                         ctrl_type = child.friendly_class_name() or ""
-                    except:
+                    except Exception:
                         pass
                 
                 try:
                     auto_id = child.automation_id() if hasattr(child, 'automation_id') else ""
-                except:
+                except Exception:
                     pass
                 
                 try:
                     is_enabled = child.is_enabled()
-                except:
+                except Exception:
                     pass
                 
                 try:
                     is_visible = child.is_visible()
-                except:
+                except Exception:
                     pass
                 
                 try:
                     rect = child.rectangle()
                     if rect:
                         rect = (rect.left, rect.top, rect.right, rect.bottom)
-                except:
+                except Exception:
                     pass
                 
                 # Only add elements with meaningful names
@@ -258,44 +249,22 @@ def format_elements_for_prompt(elements: list[UIElement]) -> str:
 
 
 def click_element(elem: UIElement) -> bool:
-    """Click a UI element using pywinauto.
-    
+    """Click a UI element at its center coordinates.
+
+    Uses pyautogui to click at the element's known center position.
+    This is faster and more reliable than re-searching the UI tree.
     Returns True if successful, False otherwise.
     """
-    pw = _get_pywinauto()
-    if pw is None:
+    if not elem.rect:
+        log.warning("Element has no rect, cannot click: %s", elem)
         return False
-    
+
     try:
-        app = get_uiauto_backend()
-        if app is None:
-            return False
-        
-        # Find the window containing this element
-        desktop = pw.Desktop(backend="uia" if app.backend == "uia" else "win32")
-        
-        for win in desktop.windows():
-            try:
-                title = win.window_text()
-                if "oobe-automator" in title.lower() or "overlay" in title.lower():
-                    continue
-                
-                # Look for this element in the window
-                for child in win.descendants():
-                    try:
-                        if child.window_text() == elem.name:
-                            # Found the element - click it
-                            child.click()
-                            log.info("Clicked element: %s", elem)
-                            return True
-                    except:
-                        continue
-            except:
-                continue
-        
-        log.warning("Could not find element in any window: %s", elem)
-        return False
-        
+        import pyautogui
+        x, y = elem.center_x, elem.center_y
+        log.info("Clicking element '%s' at (%d, %d)", elem.name, x, y)
+        pyautogui.click(x, y)
+        return True
     except Exception as e:
         log.error("Failed to click element: %s", e)
         return False
