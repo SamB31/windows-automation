@@ -86,23 +86,23 @@ OVERLAY_OPACITY = 200  # 0-255
 # System prompt for Gemma
 SYSTEM_PROMPT = """You are automating Windows OOBE setup to reach the desktop.
 
-PREFER KEYBOARD over mouse clicks — keyboard is more reliable:
-- Press "enter" to click the focused/default button (Yes, Next, Accept)
-- Press "tab" to move focus to the next button
-- Press "tab" then "enter" to reach and click a secondary button
-- Only use "click" when you must type in a text field first, or select a specific item
+PREFER MOUSE CLICKS — only use keyboard when you must type text:
+- Use "click" action with x,y coordinates to click buttons directly
+- Use "type" action ONLY when you see a text input field that needs typing
+- Use "key" action only for "tab" to navigate between elements, then click
 
 SCREEN-BY-SCREEN GUIDE:
-- Country/region "United States" already selected: press "enter" to click Yes
-- Keyboard layout: press "enter" for Yes, or "tab" then "enter" for Skip
-- Second keyboard layout: press "tab" then "enter" to click Skip
-- Network/Wi-Fi: press "tab" to find "I don't have internet" and press "enter"
-- "Continue with limited setup": press "tab" then "enter"
-- Name field: use "type" action with text "Admin", then "key" action "enter"
-- Password field: just press "enter" (leave blank)
-- Security questions: type any answer, press "enter"
-- Privacy settings: press "enter" to Accept
+- Country/region screen: click on the "Yes" button
+- Keyboard layout: click "Yes" or "Accept"
+- Second keyboard layout: click "Skip" or "Next"
+- Network/Wi-Fi: click "I don't have internet" or similar, then click "Continue"
+- Name field: click the name input field, type "Admin", then click "Next"
+- Password field: click "Next" (leave blank)
+- Security questions: type any answers, click "Next"
+- Privacy settings: click "Accept" or "Next"
 - If you see the desktop (taskbar, start menu): set "at_desktop": true
+
+IMPORTANT: Always provide actual x,y pixel coordinates for click actions. The screen resolution is passed to you.
 
 Respond with ONLY a JSON object:
 {"screen":"description","action":"click|type|key|wait","target":"what","x":0,"y":0,"text":"","key":"","reasoning":"why","at_desktop":false}

@@ -9,7 +9,7 @@ import pyautogui
 log = logging.getLogger(__name__)
 
 pyautogui.FAILSAFE = False
-pyautogui.PAUSE = 0.3
+pyautogui.PAUSE = 0.1
 
 INPUT_KEYBOARD = 1
 KEYEVENTF_KEYUP = 0x0002
@@ -51,16 +51,34 @@ def _send_key_raw(vk_code: int):
     ctypes.windll.user32.SendInput(1, ctypes.byref(inp_up), ctypes.sizeof(inp_up))
 
 
-def _set_foreground_hwnd(hwnd: int):
-    """Bring a window to the foreground without clicking."""
+def _bring_oobe_to_foreground():
+    """Find and bring the OOBE window to foreground."""
     user32 = ctypes.windll.user32
-    user32.SetForegroundWindow(hwnd)
-    time.sleep(0.05)
-
-
-def _get_foreground_window() -> int:
-    """Get the handle of the currently foreground window."""
-    return ctypes.windll.user32.GetForegroundWindow()
+    
+    overlay_hwnd = None
+    oobe_hwnd = None
+    
+    def enum_callback(hwnd, _):
+        nonlocal overlay_hwnd, oobe_hwnd
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length == 0:
+            return True
+        buffer = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buffer, length + 1)
+        title = buffer.value
+        
+        if "OOBE Overlay" in title or "oobe-automator" in title.lower():
+            overlay_hwnd = hwnd
+        elif hwnd != overlay_hwnd:
+            oobe_hwnd = hwnd
+        return True
+    
+    enumfunc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_long, ctypes.c_long)(enum_callback)
+    user32.EnumWindows(enumfunc, 0)
+    
+    if oobe_hwnd:
+        user32.SetForegroundWindow(oobe_hwnd)
+        time.sleep(0.1)
 
 
 def execute_action(action: dict) -> None:
@@ -71,11 +89,13 @@ def execute_action(action: dict) -> None:
         x = action.get("x", 0)
         y = action.get("y", 0)
         log.info("Clicking at (%d, %d) — %s", x, y, action.get("target", ""))
+        _bring_oobe_to_foreground()
         pyautogui.click(x, y)
 
     elif action_type == "type":
         text = action.get("text", "")
         log.info("Typing: %s", text)
+        _bring_oobe_to_foreground()
         pyautogui.typewrite(text, interval=0.05)
 
     elif action_type == "key":
