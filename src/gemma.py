@@ -71,23 +71,47 @@ def load_model() -> Llama:
     return llm
 
 
-def analyze_screen(llm: Llama, screenshot_b64: str, screen_size: tuple[int, int]) -> dict:
-    """Send screenshot to Gemma and get the action to perform."""
+def analyze_screen(llm: Llama, screenshot_b64: str, screen_size: tuple[int, int], ui_elements: list = None) -> dict:
+    """Send screenshot to Gemma and get the action to perform.
+    
+    Args:
+        llm: Loaded Gemma model
+        screenshot_b64: Base64-encoded screenshot
+        screen_size: (width, height) of screen
+        ui_elements: Optional list of UIElement objects from UI Automation
+    """
     w, h = screen_size
     
     resolution_context = (
         f"The screen is {w}x{h} pixels. "
         f"Coordinate system: x ranges from 0 (left) to {w} (right), "
-        f"y ranges from 0 (top) to {h} (bottom). "
-        f"Common button sizes are 100-200px wide and 30-50px tall."
+        f"y ranges from 0 (top) to {h} (bottom)."
     )
+    
+    # Import here to avoid circular dependency
+    from uiauto import format_elements_for_prompt, get_clickable_elements
+    
+    # Format UI elements if available
+    elements_context = ""
+    clickable_elements = []
+    if ui_elements:
+        clickable_elements = get_clickable_elements(ui_elements)
+        elements_context = format_elements_for_prompt(clickable_elements)
+        if elements_context:
+            resolution_context += "\n\n" + elements_context
     
     prompt = (
         f"{SYSTEM_PROMPT}\n\n"
         f"{resolution_context}\n\n"
-        "Look at the screenshot carefully. Identify the exact x,y pixel coordinates "
-        "where you want to click. Then respond with ONLY a JSON object."
+        "Look at the screenshot carefully."
     )
+    
+    if clickable_elements:
+        prompt += " You have a list of UI elements above - USE element names when responding."
+    else:
+        prompt += " No UI elements available via automation - use screenshot analysis for coordinates."
+    
+    prompt += " Respond with ONLY a JSON object."
 
     image_url = f"data:image/jpeg;base64,{screenshot_b64}"
 
@@ -120,7 +144,13 @@ def analyze_screen(llm: Llama, screenshot_b64: str, screen_size: tuple[int, int]
             raw = raw[start:end]
 
         action = json.loads(raw)
-        log.info("Parsed action: screen=%s action=%s", action.get("screen"), action.get("action"))
+        
+        # Attach UI elements to action for automator to use
+        if clickable_elements:
+            action["_ui_elements"] = clickable_elements
+        
+        log.info("Parsed action: screen=%s action=%s target=%s", 
+                 action.get("screen"), action.get("action"), action.get("target"))
         return action
 
     except json.JSONDecodeError as e:

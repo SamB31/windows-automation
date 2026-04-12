@@ -2,6 +2,10 @@
 
 Captures screenshots, analyzes them with Gemma 4 E4B, and automates
 Windows OOBE until the desktop is reached.
+
+HYBRID APPROACH: Uses UI Automation (pywinauto) when available to get
+element tree, combined with vision model analysis for decision-making.
+Element-based clicks are preferred over coordinate-based clicks.
 """
 
 import logging
@@ -16,6 +20,7 @@ from gemma import analyze_screen, load_model
 from overlay import RainbowOverlay
 from screenshot import capture_screen_base64
 from automator import execute_action
+from uiauto import get_all_elements
 
 logging.basicConfig(
     level=logging.INFO,
@@ -75,9 +80,13 @@ def main():
             screenshot_b64, screen_size = capture_screen_base64()
             log.info("Captured screenshot (%dx%d)", *screen_size)
 
-            # Analyze with Gemma
+            # HYBRID: Get UI elements via UI Automation
+            ui_elements = get_all_elements()
+            log.info("UI elements found: %d", len(ui_elements))
+
+            # Analyze with Gemma (pass UI elements for element-based decisions)
             overlay.set_status(f"[{cycle}] Analyzing screen with Gemma...")
-            action = analyze_screen(llm, screenshot_b64, screen_size)
+            action = analyze_screen(llm, screenshot_b64, screen_size, ui_elements)
 
             # Check if we've reached the desktop
             if action.get("at_desktop"):
@@ -92,7 +101,9 @@ def main():
             action_type = action.get("action", "wait")
             screen_desc = action.get("screen", "unknown")
 
-            if action_type == "click":
+            if action_type == "element_click":
+                overlay.set_status(f"[{cycle}] Element-click: {action.get('target', '')} — {screen_desc}")
+            elif action_type == "click":
                 overlay.set_status(f"[{cycle}] Clicking ({action.get('x')}, {action.get('y')}) — {screen_desc}")
             elif action_type == "type":
                 overlay.set_status(f"[{cycle}] Typing: {action.get('text', '')}")
@@ -109,7 +120,9 @@ def main():
             else:
                 consecutive_failures = 0
 
-            execute_action(action)
+            # Get UI elements from action (set by analyzer)
+            action_ui_elements = action.get("_ui_elements", None)
+            execute_action(action, action_ui_elements)
 
             # Wait before next cycle
             time.sleep(CYCLE_DELAY)

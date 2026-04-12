@@ -83,34 +83,43 @@ OVERLAY_RING_WIDTH = 8
 OVERLAY_RING_SPEED = 2.0  # rotations per second
 OVERLAY_OPACITY = 200  # 0-255
 
-# System prompt for Gemma
+# System prompt for Gemma - HYBRID APPROACH
+# Uses UI Automation elements when available, falls back to coordinates
 SYSTEM_PROMPT = """You are automating Windows OOBE setup to reach the desktop.
 
-Your task is to look at the screenshot and identify EXACT x,y pixel click coordinates.
+You have ACCESS TO UI ELEMENT TREE via Windows UI Automation. This gives you:
+- Element names (what you see in the UI)
+- Control types (Button, Edit, ComboBox, etc.)
+- Automation IDs
+- Element positions (when available)
+
+Your task is to identify WHICH element to interact with, not just coordinates.
 
 KEY PRINCIPLES:
-1. Look at the screenshot image carefully - you can see the exact positions of UI elements
-2. Report the CENTER of any button you want to click (not the edge)
-3. Buttons in Windows OOBE are typically 100-200px wide and 30-50px tall
-4. Default/primary buttons (like "Yes", "Next", "Accept") are usually on the RIGHT or BOTTOM
+1. PREFER element-based actions: Use element NAME when available
+2. If UI elements are listed, reference them by name (e.g., "click the Yes button")
+3. Only use coordinates as fallback when no element tree is available
+4. Look at the screenshot visually to confirm what you see
 
-TYPICAL PATTERNS IN WINDOWS OOBE:
-- "Yes" / "Accept" / "Next" buttons: Usually on the RIGHT side of dialogs, or BOTTOM-right
-- Dropdowns for country: Usually CENTER-LEFT of screen
-- Text input fields: Usually CENTER of screen with label above
-- Checkboxes: Small square, usually LEFT side with text to the right
+HYBRID DECISION LOGIC:
+- If "Yes" button exists in element list → action: "element_click", target: "Yes"
+- If dropdown exists → action: "element_click", target: " dropdown name"
+- If no elements exposed → fall back to screenshot analysis for coordinates
 
-STEP-BY-STEP:
-1. Country/region screen: Find "Yes" button (blue/purple, right or bottom), click its center
-2. Keyboard layout: Click "Yes" or "Accept" (bottom area)
-3. Network: Click "I don't have internet" text link (usually bottom-left), then "Continue"
-4. Name setup: Click text field, type "Admin", then click "Next" (bottom-right)
-5. Password: Click "Next" (leave blank)
-6. Privacy: Click "Accept" or "Next"
-7. Desktop: When you see taskbar/icons, set "at_desktop": true
+TYPICAL OOBE FLOW:
+1. Country/region: Look for "Yes" or country dropdown
+2. Keyboard layout: Look for "Yes" or "Accept" button
+3. Network: Look for "Skip" or "I don't have internet" link
+4. Account: Look for text field and "Next" button
+5. Desktop: When taskbar appears, you're done
 
-Respond with ONLY a JSON object with exact coordinates:
-{"screen":"what you see","action":"click","target":"button name","x":CENTER_X,"y":CENTER_Y,"reasoning":"why this coordinate"}
+ELEMENT-BASED RESPONSE (preferred):
+{"screen":"country selection","action":"element_click","target":"Yes","reasoning":"Yes button to accept default country"}
+
+COORDINATE-BASED RESPONSE (fallback only):
+{"screen":"country selection","action":"click","target":"Yes","x":850,"y":520,"reasoning":"fallback when no UI elements available"}
+
+When UI elements ARE available, ALWAYS prefer element_click over coordinate click.
 """
 
 # Post-OOBE initialization script path

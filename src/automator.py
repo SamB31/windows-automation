@@ -1,10 +1,18 @@
-"""Windows automation — keyboard and mouse control."""
+"""Windows automation — keyboard and mouse control.
+
+This module supports both:
+1. Element-based clicks (preferred) - uses UI Automation via pywinauto
+2. Coordinate-based clicks (fallback) - uses pyautogui with x,y coordinates
+"""
 
 import ctypes
 import logging
 import time
+from typing import Optional
 
 import pyautogui
+
+from uiauto import find_button, click_element, UIElement
 
 log = logging.getLogger(__name__)
 
@@ -81,14 +89,47 @@ def _bring_oobe_to_foreground():
         time.sleep(0.1)
 
 
-def execute_action(action: dict) -> None:
-    """Execute an action dict returned by Gemma."""
+def execute_action(action: dict, ui_elements: list[UIElement] = None) -> None:
+    """Execute an action dict returned by Gemma.
+    
+    Supports both element-based clicks (via UI Automation) and 
+    coordinate-based clicks (via pyautogui) as fallback.
+    """
     action_type = action.get("action", "wait")
+    target = action.get("target", "")
 
-    if action_type == "click":
+    if action_type == "element_click":
+        # HYBRID: Element-based click using UI Automation
+        target_name = target
+        log.info("Element-click on '%s'", target_name)
+        
+        if ui_elements:
+            elem = find_button(ui_elements, target_name)
+            if elem:
+                log.info("Found element: %s at center (%d, %d)", elem.name, elem.center_x, elem.center_y)
+                _bring_oobe_to_foreground()
+                success = click_element(elem)
+                if success:
+                    log.info("Successfully clicked element via UI Automation")
+                    return
+                else:
+                    log.warning("UI Automation click failed, falling back to coordinates")
+            else:
+                log.info("Element '%s' not found in UI tree, falling back to screenshot analysis", target_name)
+                log.info("Available elements: %s", [e.name for e in ui_elements[:10]])
+        
+        # Fallback to coordinate-based click
         x = action.get("x", 0)
         y = action.get("y", 0)
-        log.info("Clicking at (%d, %d) — %s", x, y, action.get("target", ""))
+        log.info("Fallback: clicking at (%d, %d)", x, y)
+        _bring_oobe_to_foreground()
+        pyautogui.click(x, y)
+
+    elif action_type == "click":
+        # Coordinate-based click (original behavior)
+        x = action.get("x", 0)
+        y = action.get("y", 0)
+        log.info("Clicking at (%d, %d) — %s", x, y, target)
         _bring_oobe_to_foreground()
         pyautogui.click(x, y)
 

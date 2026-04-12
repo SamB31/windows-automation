@@ -5,3 +5,4 @@ llama-cpp-python>=0.3.0
 pygame>=2.5.0
 pyinstaller>=6.0.0
 huggingface-hub>=0.20.0
+pywinauto>=0.6.8
