@@ -1,19 +1,23 @@
-"""Download Gemma 4 E4B GGUF model files from HuggingFace."""
+"""Download UI-TARS 1.5 7B GGUF model files from HuggingFace.
+
+UI-TARS is a vision-language model specifically trained for GUI automation
+with accurate coordinate prediction for UI elements.
+"""
 
 import os
 from huggingface_hub import hf_hub_download
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
-# Gemma 4 E4B Instruct — Q4_K_M quantized by Bartowski (~5.4GB)
-MODEL_REPO = "bartowski/google_gemma-4-E4B-it-GGUF"
-MODEL_FILE = "google_gemma-4-E4B-it-Q4_K_M.gguf"
-MODEL_LOCAL = "gemma-4-E4B-it.gguf"
+# UI-TARS 1.5 7B — Q4_K quantization (~4-5GB)
+MODEL_REPO = "Mungert/UI-TARS-1.5-7B-GGUF"
+MODEL_FILE = "UI-TARS-1.5-7B-q4_k.gguf"
+MODEL_LOCAL = "UI-TARS-1.5-7B-q4_k.gguf"
 
-# Vision projector (mmproj) from Unsloth (~990MB)
-MMPROJ_REPO = "unsloth/gemma-4-E4B-it-GGUF"
-MMPROJ_FILE = "mmproj-F16.gguf"
-MMPROJ_LOCAL = "gemma-4-E4B-it-mmproj.gguf"
+# Vision projector (mmproj) for UI-TARS
+MMPROJ_REPO = "Mungert/UI-TARS-1.5-7B-GGUF"
+MMPROJ_FILE = "UI-TARS-1.5-7B-q4_k.mmproj"
+MMPROJ_LOCAL = "UI-TARS-1.5-7B-q4_k.mmproj"
 
 
 def main():

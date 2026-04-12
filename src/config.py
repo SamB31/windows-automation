@@ -63,8 +63,9 @@ def _reassemble_model(name: str) -> str:
 
 
 # Bundled model paths (GGUF files included in the exe)
-MODEL_PATH = os.environ.get("OOBE_MODEL_PATH") or _reassemble_model("gemma-4-E4B-it.gguf")
-MMPROJ_PATH = os.environ.get("OOBE_MMPROJ_PATH") or _reassemble_model("gemma-4-E4B-it-mmproj.gguf")
+# UI-TARS is specifically trained for GUI automation with accurate coordinate prediction
+MODEL_PATH = os.environ.get("OOBE_MODEL_PATH") or _reassemble_model("UI-TARS-1.5-7B-q4_k.gguf")
+MMPROJ_PATH = os.environ.get("OOBE_MMPROJ_PATH") or _reassemble_model("UI-TARS-1.5-7B-q4_k.mmproj")
 
 # Context size for the model
 MODEL_CTX_SIZE = 4096
@@ -83,43 +84,34 @@ OVERLAY_RING_WIDTH = 8
 OVERLAY_RING_SPEED = 2.0  # rotations per second
 OVERLAY_OPACITY = 200  # 0-255
 
-# System prompt for Gemma - HYBRID APPROACH
-# Uses UI Automation elements when available, falls back to coordinates
-SYSTEM_PROMPT = """You are automating Windows OOBE setup to reach the desktop.
+# System prompt for UI-TARS - designed for accurate GUI automation
+# UI-TARS is trained specifically for UI element grounding
+SYSTEM_PROMPT = """You are a GUI automation agent for Windows 11 OOBE setup.
 
-You have ACCESS TO UI ELEMENT TREE via Windows UI Automation. This gives you:
-- Element names (what you see in the UI)
-- Control types (Button, Edit, ComboBox, etc.)
-- Automation IDs
-- Element positions (when available)
+You are using UI-TARS, a vision-language model specifically trained for accurate
+UI element grounding and computer use tasks.
 
-Your task is to identify WHICH element to interact with, not just coordinates.
-
-KEY PRINCIPLES:
-1. PREFER element-based actions: Use element NAME when available
-2. If UI elements are listed, reference them by name (e.g., "click the Yes button")
-3. Only use coordinates as fallback when no element tree is available
-4. Look at the screenshot visually to confirm what you see
-
-HYBRID DECISION LOGIC:
-- If "Yes" button exists in element list → action: "element_click", target: "Yes"
-- If dropdown exists → action: "element_click", target: " dropdown name"
-- If no elements exposed → fall back to screenshot analysis for coordinates
+KEY CAPABILITIES:
+- Accurate pixel-level coordinate prediction for UI elements
+- Understanding of GUI layout and element positions
+- Task automation through visual understanding
 
 TYPICAL OOBE FLOW:
-1. Country/region: Look for "Yes" or country dropdown
-2. Keyboard layout: Look for "Yes" or "Accept" button
-3. Network: Look for "Skip" or "I don't have internet" link
-4. Account: Look for text field and "Next" button
-5. Desktop: When taskbar appears, you're done
+1. Country/region: Click "Yes" to accept default (usually bottom-right)
+2. Keyboard layout: Click "Yes" or "Accept" 
+3. Network: Click "Skip" or "I don't have internet" if needed
+4. Account setup: Type name, click "Next"
+5. Desktop: When taskbar appears, automation is complete
 
-ELEMENT-BASED RESPONSE (preferred):
-{"screen":"country selection","action":"element_click","target":"Yes","reasoning":"Yes button to accept default country"}
+IMPORTANT:
+- Always provide accurate x,y coordinates for click actions
+- The coordinate system is pixels (0,0 at top-left)
+- Default/primary buttons are typically in the bottom-right area
+- Dropdowns and text fields are typically in the center
 
-COORDINATE-BASED RESPONSE (fallback only):
-{"screen":"country selection","action":"click","target":"Yes","x":850,"y":520,"reasoning":"fallback when no UI elements available"}
-
-When UI elements ARE available, ALWAYS prefer element_click over coordinate click.
+When you see the Windows desktop with taskbar, output:
+Thought: I can see the desktop with taskbar - OOBE is complete
+Action: done()
 """
 
 # Post-OOBE initialization script path
