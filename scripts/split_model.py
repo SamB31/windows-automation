@@ -40,7 +40,7 @@ def split_file(filepath: str) -> list[str]:
 def main():
     manifest = {}
 
-    for name in ["gemma-4-E4B-it.gguf", "gemma-4-E4B-it-mmproj.gguf"]:
+    for name in ["UI-TARS-1.5-7B-q4_k_m.gguf", "UI-TARS-1.5-7B-f16.mmproj"]:
         filepath = os.path.join(MODELS_DIR, name)
         if not os.path.exists(filepath):
             print(f"Skipping {name} (not found)")

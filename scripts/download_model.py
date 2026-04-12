@@ -9,15 +9,15 @@ from huggingface_hub import hf_hub_download
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
-# UI-TARS 1.5 7B — Q4_K quantization (~4-5GB)
+# UI-TARS 1.5 7B — Q4_K_M quantization (~4.78GB)
 MODEL_REPO = "Mungert/UI-TARS-1.5-7B-GGUF"
-MODEL_FILE = "UI-TARS-1.5-7B-q4_k.gguf"
-MODEL_LOCAL = "UI-TARS-1.5-7B-q4_k.gguf"
+MODEL_FILE = "UI-TARS-1.5-7B-q4_k_m.gguf"
+MODEL_LOCAL = "UI-TARS-1.5-7B-q4_k_m.gguf"
 
-# Vision projector (mmproj) for UI-TARS
+# Vision projector (mmproj) — F16 (~1.35GB)
 MMPROJ_REPO = "Mungert/UI-TARS-1.5-7B-GGUF"
-MMPROJ_FILE = "UI-TARS-1.5-7B-q4_k.mmproj"
-MMPROJ_LOCAL = "UI-TARS-1.5-7B-q4_k.mmproj"
+MMPROJ_FILE = "UI-TARS-1.5-7B-f16.mmproj"
+MMPROJ_LOCAL = "UI-TARS-1.5-7B-f16.mmproj"
 
 
 def main():
@@ -32,10 +32,10 @@ def main():
             repo_id=MODEL_REPO,
             filename=MODEL_FILE,
             local_dir=MODELS_DIR,
-            local_dir_use_symlinks=False,
         )
         downloaded = os.path.join(MODELS_DIR, MODEL_FILE)
-        os.rename(downloaded, model_path)
+        if downloaded != model_path:
+            os.rename(downloaded, model_path)
         print(f"Saved to {model_path}")
     else:
         print(f"Model already exists: {model_path}")
@@ -46,10 +46,10 @@ def main():
             repo_id=MMPROJ_REPO,
             filename=MMPROJ_FILE,
             local_dir=MODELS_DIR,
-            local_dir_use_symlinks=False,
         )
         downloaded = os.path.join(MODELS_DIR, MMPROJ_FILE)
-        os.rename(downloaded, mmproj_path)
+        if downloaded != mmproj_path:
+            os.rename(downloaded, mmproj_path)
         print(f"Saved to {mmproj_path}")
     else:
         print(f"mmproj already exists: {mmproj_path}")

@@ -64,8 +64,8 @@ def _reassemble_model(name: str) -> str:
 
 # Bundled model paths (GGUF files included in the exe)
 # UI-TARS is specifically trained for GUI automation with accurate coordinate prediction
-MODEL_PATH = os.environ.get("OOBE_MODEL_PATH") or _reassemble_model("UI-TARS-1.5-7B-q4_k.gguf")
-MMPROJ_PATH = os.environ.get("OOBE_MMPROJ_PATH") or _reassemble_model("UI-TARS-1.5-7B-q4_k.mmproj")
+MODEL_PATH = os.environ.get("OOBE_MODEL_PATH") or _reassemble_model("UI-TARS-1.5-7B-q4_k_m.gguf")
+MMPROJ_PATH = os.environ.get("OOBE_MMPROJ_PATH") or _reassemble_model("UI-TARS-1.5-7B-f16.mmproj")
 
 # Context size for the model
 MODEL_CTX_SIZE = 4096
