@@ -1,7 +1,9 @@
 """UI-TARS vision — runs locally via llama-cpp-python with bundled GGUF weights.
 
 UI-TARS is specifically trained for GUI agent tasks with accurate coordinate prediction.
-Built on Qwen2-VL architecture — uses Qwen25VLChatHandler and ChatML format.
+Built on Qwen2-VL architecture — uses ChatML format (<|im_start|>/<|im_end|>).
+We subclass Llava15ChatHandler (available in standard PyPI llama-cpp-python) and
+override CHAT_FORMAT with ChatML tokens since Qwen25VLChatHandler is not in PyPI.
 Coordinates are normalized 0-1000 and converted to pixel values.
 """
 
@@ -10,7 +12,7 @@ import logging
 import re
 
 from llama_cpp import Llama
-from llama_cpp.llama_chat_format import Qwen25VLChatHandler
+from llama_cpp.llama_chat_format import Llava15ChatHandler
 
 from config import (
     MODEL_PATH,
@@ -23,10 +25,66 @@ from config import (
 log = logging.getLogger(__name__)
 
 
+class UITarsChatHandler(Llava15ChatHandler):
+    """Llava15ChatHandler with ChatML template for Qwen2-VL / UI-TARS.
+
+    The standard PyPI llama-cpp-python doesn't include Qwen25VLChatHandler,
+    so we subclass Llava15ChatHandler (which handles mmproj/CLIP loading)
+    and override CHAT_FORMAT with ChatML tokens that UI-TARS expects.
+    """
+
+    CHAT_FORMAT = (
+        "{% for message in messages %}"
+        "{% if message.role == 'system' %}"
+        "<|im_start|>system\n"
+        "{% if message.content is string %}"
+        "{{ message.content }}"
+        "{% else %}"
+        "{% for content in message.content %}"
+        "{% if content.type == 'text' %}{{ content.text }}{% endif %}"
+        "{% endfor %}"
+        "{% endif %}"
+        "<|im_end|>\n"
+        "{% endif %}"
+        "{% if message.role == 'user' %}"
+        "<|im_start|>user\n"
+        "{% if message.content is iterable and message.content is not string %}"
+        "{% for content in message.content %}"
+        "{% if content.type == 'image_url' and content.image_url is string %}"
+        "{{ content.image_url }}"
+        "{% endif %}"
+        "{% if content.type == 'image_url' and content.image_url is mapping %}"
+        "{{ content.image_url.url }}"
+        "{% endif %}"
+        "{% endfor %}"
+        "{% for content in message.content %}"
+        "{% if content.type == 'text' %}"
+        "{{ content.text }}"
+        "{% endif %}"
+        "{% endfor %}"
+        "{% else %}"
+        "{{ message.content }}"
+        "{% endif %}"
+        "<|im_end|>\n"
+        "{% endif %}"
+        "{% if message.role == 'assistant' and message.content is not none %}"
+        "<|im_start|>assistant\n"
+        "{{ message.content }}"
+        "<|im_end|>\n"
+        "{% endif %}"
+        "{% endfor %}"
+        "{% if add_generation_prompt %}"
+        "<|im_start|>assistant\n"
+        "{% endif %}"
+    )
+
+    DEFAULT_SYSTEM_MESSAGE = None
+
+
 def load_model() -> Llama:
     """Load the bundled UI-TARS model with vision support."""
     log.info("Loading vision projector from %s", MMPROJ_PATH)
-    chat_handler = Qwen25VLChatHandler(clip_model_path=MMPROJ_PATH, verbose=False)
+    chat_handler = UITarsChatHandler(clip_model_path=MMPROJ_PATH, verbose=False)
 
     log.info("Loading model from %s", MODEL_PATH)
     llm = Llama(
