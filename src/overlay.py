@@ -11,14 +11,11 @@ from config import OVERLAY_RING_SPEED, OVERLAY_RING_WIDTH
 
 
 def _hsv_to_rgb(h: float, s: float, v: float) -> tuple[int, int, int]:
-    """Convert HSV (0-1 range) to RGB (0-255 range)."""
     r, g, b = colorsys.hsv_to_rgb(h % 1.0, s, v)
     return int(r * 255), int(g * 255), int(b * 255)
 
 
 class RainbowOverlay:
-    """Renders an animated rainbow ring border with a status label."""
-
     def __init__(self):
         self._running = False
         self._thread = None
@@ -26,12 +23,10 @@ class RainbowOverlay:
         self._lock = threading.Lock()
 
     def set_status(self, text: str):
-        """Update the status text shown in the overlay."""
         with self._lock:
             self._status = text
 
     def start(self):
-        """Start the overlay in a background thread."""
         if self._running:
             return
         self._running = True
@@ -39,13 +34,11 @@ class RainbowOverlay:
         self._thread.start()
 
     def stop(self):
-        """Stop the overlay."""
         self._running = False
         if self._thread:
             self._thread.join(timeout=2)
 
     def _run(self):
-        """Main overlay loop."""
         pygame.init()
         info = pygame.display.Info()
         w, h = info.current_w, info.current_h
@@ -56,26 +49,37 @@ class RainbowOverlay:
         hwnd = pygame.display.get_wm_info()["window"]
         user32 = ctypes.windll.user32
         GWL_EXSTYLE = -20
+        GWL_WNDPROC = -4
         WS_EX_LAYERED = 0x80000
         WS_EX_TRANSPARENT = 0x20
         WS_EX_TOPMOST = 0x8
+        WS_EX_NOACTIVATE = 0x8000000
         HWND_TOPMOST = -1
         SWP_NOMOVE = 0x2
         SWP_NOSIZE = 0x1
         LWA_COLORKEY = 0x1
+        WM_NCHITTEST = 0x0084
+        HTTRANSPARENT = -1
 
         style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        style |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST
+        style |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE
         user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
         user32.SetLayeredWindowAttributes(hwnd, 0x00000000, 0, LWA_COLORKEY)
         user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
 
+        @ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_long, ctypes.c_long, ctypes.c_long)
+        def wndproc(hwnd, msg, wparam, lparam):
+            if msg == WM_NCHITTEST:
+                return HTTRANSPARENT
+            return user32.CallWindowProcW(original_wndproc, hwnd, msg, wparam, lparam)
+
+        original_wndproc = user32.SetWindowLongW(hwnd, GWL_WNDPROC, wndproc)
+
         clock = pygame.time.Clock()
-        colorkey = (0, 0, 0)  # Black is transparent
+        colorkey = (0, 0, 0)
         ring_w = OVERLAY_RING_WIDTH
         segments = 360
 
-        # Font for status text
         font = pygame.font.SysFont("consolas", 18, bold=True)
 
         while self._running:
@@ -86,10 +90,8 @@ class RainbowOverlay:
 
             screen.fill(colorkey)
 
-            # Re-pin as topmost every frame (OOBE dialogs aggressively steal focus)
             user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
 
-            # Draw rainbow ring
             t = time.time() * OVERLAY_RING_SPEED
             perimeter = 2 * (w + h)
 
@@ -110,7 +112,6 @@ class RainbowOverlay:
 
                 pygame.draw.rect(screen, color, rect)
 
-            # Draw status text with background
             with self._lock:
                 status = self._status
 
@@ -118,13 +119,13 @@ class RainbowOverlay:
             bg_rect = text_surface.get_rect()
             bg_rect.topleft = (ring_w + 4, ring_w + 4)
 
-            # Dark semi-transparent background (use a non-black color since black is colorkey)
             bg = pygame.Surface((bg_rect.width + 8, bg_rect.height + 4))
-            bg.fill((1, 1, 1))  # Near-black but not colorkey
+            bg.fill((1, 1, 1))
             screen.blit(bg, (ring_w + 2, ring_w + 2))
             screen.blit(text_surface, bg_rect)
 
             pygame.display.flip()
             clock.tick(60)
 
+        user32.SetWindowLongW(hwnd, GWL_WNDPROC, original_wndproc)
         pygame.quit()
