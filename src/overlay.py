@@ -62,10 +62,10 @@ class RainbowOverlay:
         HTTRANSPARENT = -1
 
         style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        style |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE
+        style |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST
         user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
         user32.SetLayeredWindowAttributes(hwnd, 0x00000000, 0, LWA_COLORKEY)
-        user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+        user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | 0x4)  # SWP_SHOWWINDOW
 
         @ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_long, ctypes.c_long, ctypes.c_long)
         def wndproc(hwnd, msg, wparam, lparam):
@@ -76,7 +76,7 @@ class RainbowOverlay:
         original_wndproc = user32.SetWindowLongW(hwnd, GWL_WNDPROC, wndproc)
 
         clock = pygame.time.Clock()
-        colorkey = (0, 0, 0)
+        colorkey = (0, 0, 0)  # Black is transparent
         ring_w = OVERLAY_RING_WIDTH
         segments = 360
 
@@ -88,9 +88,9 @@ class RainbowOverlay:
                     self._running = False
                     break
 
-            screen.fill(colorkey)
+            screen.fill(colorkey)  # Fill with black (becomes transparent via colorkey)
 
-            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | 0x4)
 
             t = time.time() * OVERLAY_RING_SPEED
             perimeter = 2 * (w + h)
