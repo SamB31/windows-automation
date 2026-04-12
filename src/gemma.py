@@ -1,63 +1,123 @@
-"""Gemma 3 4B vision integration via ollama."""
+"""Gemma 4 E4B vision — runs locally via llama-cpp-python with bundled GGUF weights."""
 
 import json
 import logging
 
-import ollama
+from llama_cpp import Llama
+from llama_cpp.llama_chat_format import Llava15ChatHandler
 
-from config import MODEL_NAME, OLLAMA_HOST, SYSTEM_PROMPT
+from config import MODEL_PATH, MMPROJ_PATH, MODEL_CTX_SIZE, MODEL_GPU_LAYERS, SYSTEM_PROMPT
 
 log = logging.getLogger(__name__)
 
 
-def create_client() -> ollama.Client:
-    """Create an ollama client pointing at the configured host."""
-    return ollama.Client(host=OLLAMA_HOST)
+class GemmaVisionChatHandler(Llava15ChatHandler):
+    """Llava15ChatHandler with Gemma's chat template instead of LLaVA's."""
 
-
-def analyze_screen(client: ollama.Client, screenshot_b64: str, screen_size: tuple[int, int]) -> dict:
-    """Send screenshot to Gemma and get the action to perform.
-
-    Args:
-        client: ollama client instance
-        screenshot_b64: base64-encoded JPEG screenshot
-        screen_size: (width, height) of the screenshot
-
-    Returns:
-        Parsed action dict from Gemma's response
-    """
-    prompt = (
-        f"Screenshot dimensions: {screen_size[0]}x{screen_size[1]}. "
-        "Analyze this Windows OOBE screenshot and tell me what action to take next. "
-        "Respond ONLY with valid JSON."
+    # Override the chat format to use Gemma's <start_of_turn> tokens
+    # Images go BEFORE text per Google's recommendation
+    CHAT_FORMAT = (
+        "{% for message in messages %}"
+        "{% if message.role == 'user' %}"
+        "<start_of_turn>user\n"
+        "{% if message.content is iterable and message.content is not string %}"
+        "{% for content in message.content %}"
+        "{% if content.type == 'image_url' and content.image_url is string %}"
+        "{{ content.image_url }}"
+        "{% endif %}"
+        "{% if content.type == 'image_url' and content.image_url is mapping %}"
+        "{{ content.image_url.url }}"
+        "{% endif %}"
+        "{% endfor %}"
+        "{% for content in message.content %}"
+        "{% if content.type == 'text' %}"
+        "{{ content.text }}"
+        "{% endif %}"
+        "{% endfor %}"
+        "{% else %}"
+        "{{ message.content }}"
+        "{% endif %}"
+        "<end_of_turn>\n"
+        "{% endif %}"
+        "{% if message.role == 'assistant' and message.content is not none %}"
+        "<start_of_turn>model\n"
+        "{{ message.content }}"
+        "<end_of_turn>\n"
+        "{% endif %}"
+        "{% endfor %}"
+        "{% if add_generation_prompt %}"
+        "<start_of_turn>model\n"
+        "{% endif %}"
     )
 
+    DEFAULT_SYSTEM_MESSAGE = None
+
+
+def load_model() -> Llama:
+    """Load the bundled Gemma 4 E4B model with vision support."""
+    log.info("Loading vision projector from %s", MMPROJ_PATH)
+    chat_handler = GemmaVisionChatHandler(clip_model_path=MMPROJ_PATH, verbose=False)
+
+    log.info("Loading model from %s", MODEL_PATH)
+    llm = Llama(
+        model_path=MODEL_PATH,
+        chat_handler=chat_handler,
+        n_ctx=MODEL_CTX_SIZE,
+        n_gpu_layers=MODEL_GPU_LAYERS,
+        n_ubatch=2048,  # Gemma 4 vision needs large ubatch for image tokens
+        verbose=False,
+    )
+    log.info("Model loaded successfully")
+    return llm
+
+
+def analyze_screen(llm: Llama, screenshot_b64: str, screen_size: tuple[int, int]) -> dict:
+    """Send screenshot to Gemma and get the action to perform."""
+    # System prompt baked into user message since Gemma doesn't support system role
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\n"
+        f"The screenshot is {screen_size[0]}x{screen_size[1]} pixels. "
+        "What do you see and what single action should I take? "
+        "Reply ONLY with a JSON object, no other text."
+    )
+
+    image_url = f"data:image/jpeg;base64,{screenshot_b64}"
+
     try:
-        response = client.chat(
-            model=MODEL_NAME,
+        response = llm.create_chat_completion(
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
                 {
                     "role": "user",
-                    "content": prompt,
-                    "images": [screenshot_b64],
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                        {"type": "text", "text": prompt},
+                    ],
                 },
             ],
+            max_tokens=512,
+            temperature=0.3,
         )
 
-        raw = response.message.content.strip()
+        raw = response["choices"][0]["message"]["content"].strip()
+        log.info("Raw Gemma response: %s", raw[:500])
+
         # Strip markdown code fences if present
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[1]
             raw = raw.rsplit("```", 1)[0]
+        # Find JSON object
+        start = raw.find("{")
+        end = raw.rfind("}") + 1
+        if start >= 0 and end > start:
+            raw = raw[start:end]
 
         action = json.loads(raw)
-        log.info("Gemma analysis: %s -> %s", action.get("screen"), action.get("action"))
+        log.info("Parsed action: screen=%s action=%s", action.get("screen"), action.get("action"))
         return action
 
     except json.JSONDecodeError as e:
-        log.error("Failed to parse Gemma response as JSON: %s\nRaw: %s", e, raw)
+        log.error("Failed to parse JSON: %s\nRaw: %s", e, raw)
         return {"action": "wait", "reasoning": "Failed to parse response"}
     except Exception as e:
-        log.error("Gemma API error: %s", e)
-        return {"action": "wait", "reasoning": f"API error: {e}"}
+        log.error("Gemma inference error: %s", e)
+        return {"action": "wait", "reasoning": f"Inference error: {e}"}

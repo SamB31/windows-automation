@@ -1,27 +1,34 @@
-"""Rainbow ring overlay — Google Gemini-esque animated ring around the screen."""
+"""Rainbow ring overlay with status text — Google Gemini-esque animated ring around the screen."""
 
-import math
+import colorsys
+import ctypes
 import threading
 import time
 
 import pygame
 
-from config import OVERLAY_OPACITY, OVERLAY_RING_SPEED, OVERLAY_RING_WIDTH
+from config import OVERLAY_RING_SPEED, OVERLAY_RING_WIDTH
 
 
 def _hsv_to_rgb(h: float, s: float, v: float) -> tuple[int, int, int]:
     """Convert HSV (0-1 range) to RGB (0-255 range)."""
-    import colorsys
     r, g, b = colorsys.hsv_to_rgb(h % 1.0, s, v)
     return int(r * 255), int(g * 255), int(b * 255)
 
 
 class RainbowOverlay:
-    """Renders an animated rainbow ring border around the entire screen."""
+    """Renders an animated rainbow ring border with a status label."""
 
     def __init__(self):
         self._running = False
         self._thread = None
+        self._status = "Starting..."
+        self._lock = threading.Lock()
+
+    def set_status(self, text: str):
+        """Update the status text shown in the overlay."""
+        with self._lock:
+            self._status = text
 
     def start(self):
         """Start the overlay in a background thread."""
@@ -43,13 +50,8 @@ class RainbowOverlay:
         info = pygame.display.Info()
         w, h = info.current_w, info.current_h
 
-        # Create a borderless, topmost, transparent window
         screen = pygame.display.set_mode((w, h), pygame.NOFRAME)
         pygame.display.set_caption("OOBE Overlay")
-
-        # Make the window transparent and topmost via Windows API
-        import ctypes
-        from ctypes import wintypes
 
         hwnd = pygame.display.get_wm_info()["window"]
         user32 = ctypes.windll.user32
@@ -70,9 +72,11 @@ class RainbowOverlay:
 
         clock = pygame.time.Clock()
         colorkey = (0, 0, 0)  # Black is transparent
-
         ring_w = OVERLAY_RING_WIDTH
-        segments = 360  # one segment per degree
+        segments = 360
+
+        # Font for status text
+        font = pygame.font.SysFont("consolas", 18, bold=True)
 
         while self._running:
             for event in pygame.event.get():
@@ -82,6 +86,10 @@ class RainbowOverlay:
 
             screen.fill(colorkey)
 
+            # Re-pin as topmost every frame (OOBE dialogs aggressively steal focus)
+            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+
+            # Draw rainbow ring
             t = time.time() * OVERLAY_RING_SPEED
             perimeter = 2 * (w + h)
 
@@ -90,22 +98,31 @@ class RainbowOverlay:
                 hue = (frac + t) % 1.0
                 color = _hsv_to_rgb(hue, 0.9, 1.0)
 
-                # Map fraction around the screen perimeter
                 pos = frac * perimeter
-                if pos < w:  # Top edge
-                    x, y = pos, 0
-                    rect = (int(x), 0, max(int(perimeter / segments) + 1, 1), ring_w)
-                elif pos < w + h:  # Right edge
-                    x, y = w - ring_w, pos - w
-                    rect = (w - ring_w, int(y), ring_w, max(int(perimeter / segments) + 1, 1))
-                elif pos < 2 * w + h:  # Bottom edge
-                    x, y = w - (pos - w - h), h - ring_w
-                    rect = (int(x), h - ring_w, max(int(perimeter / segments) + 1, 1), ring_w)
-                else:  # Left edge
-                    x, y = 0, h - (pos - 2 * w - h)
-                    rect = (0, int(y), ring_w, max(int(perimeter / segments) + 1, 1))
+                if pos < w:
+                    rect = (int(pos), 0, max(int(perimeter / segments) + 1, 1), ring_w)
+                elif pos < w + h:
+                    rect = (w - ring_w, int(pos - w), ring_w, max(int(perimeter / segments) + 1, 1))
+                elif pos < 2 * w + h:
+                    rect = (int(w - (pos - w - h)), h - ring_w, max(int(perimeter / segments) + 1, 1), ring_w)
+                else:
+                    rect = (0, int(h - (pos - 2 * w - h)), ring_w, max(int(perimeter / segments) + 1, 1))
 
                 pygame.draw.rect(screen, color, rect)
+
+            # Draw status text with background
+            with self._lock:
+                status = self._status
+
+            text_surface = font.render(f"  OOBE Automator: {status}  ", True, (255, 255, 255))
+            bg_rect = text_surface.get_rect()
+            bg_rect.topleft = (ring_w + 4, ring_w + 4)
+
+            # Dark semi-transparent background (use a non-black color since black is colorkey)
+            bg = pygame.Surface((bg_rect.width + 8, bg_rect.height + 4))
+            bg.fill((1, 1, 1))  # Near-black but not colorkey
+            screen.blit(bg, (ring_w + 2, ring_w + 2))
+            screen.blit(text_surface, bg_rect)
 
             pygame.display.flip()
             clock.tick(60)
