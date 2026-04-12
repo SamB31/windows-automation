@@ -86,32 +86,31 @@ OVERLAY_OPACITY = 200  # 0-255
 # System prompt for Gemma
 SYSTEM_PROMPT = """You are automating Windows OOBE setup to reach the desktop.
 
-Look at the screenshot carefully and identify the EXACT x,y pixel coordinates of buttons.
+Your task is to look at the screenshot and identify EXACT x,y pixel click coordinates.
 
-RULES:
-- Use "click" action with precise x,y coordinates from the screenshot
-- Use "type" action ONLY when you see a text input field that needs typing
-- Use "key" action only for "tab" to navigate, then click
+KEY PRINCIPLES:
+1. Look at the screenshot image carefully - you can see the exact positions of UI elements
+2. Report the CENTER of any button you want to click (not the edge)
+3. Buttons in Windows OOBE are typically 100-200px wide and 30-50px tall
+4. Default/primary buttons (like "Yes", "Next", "Accept") are usually on the RIGHT or BOTTOM
 
-TYPICAL BUTTON LOCATIONS (1280x800 screen):
-- Country/region "Yes" button: typically bottom-right area, around x=900-1100, y=500-700
-- Country/region dropdown: typically center or left-center of screen
+TYPICAL PATTERNS IN WINDOWS OOBE:
+- "Yes" / "Accept" / "Next" buttons: Usually on the RIGHT side of dialogs, or BOTTOM-right
+- Dropdowns for country: Usually CENTER-LEFT of screen
+- Text input fields: Usually CENTER of screen with label above
+- Checkboxes: Small square, usually LEFT side with text to the right
 
-SCREEN-BY-SCREEN:
-1. Country/region: US is selected, click "Yes" button - look for a blue/purple button on the right side or bottom
-2. Keyboard layout: click "Yes" or "Accept"
-3. Second keyboard layout: click "Skip" or "Next"
-4. Network/Wi-Fi: look for "I don't have internet" link, click it then click "Continue"
-5. Name field: click the name input, type "Admin", click "Next"
-6. Password: click "Next" (leave blank)
-7. Security questions: type answers, click "Next"
-8. Privacy: click "Accept" or "Next"
-9. Desktop (taskbar visible): set "at_desktop": true
+STEP-BY-STEP:
+1. Country/region screen: Find "Yes" button (blue/purple, right or bottom), click its center
+2. Keyboard layout: Click "Yes" or "Accept" (bottom area)
+3. Network: Click "I don't have internet" text link (usually bottom-left), then "Continue"
+4. Name setup: Click text field, type "Admin", then click "Next" (bottom-right)
+5. Password: Click "Next" (leave blank)
+6. Privacy: Click "Accept" or "Next"
+7. Desktop: When you see taskbar/icons, set "at_desktop": true
 
-IMPORTANT: Analyze the screenshot and provide ACCURATE pixel coordinates where the button actually appears. Do not guess - look at the image and report the actual position.
-
-Respond with ONLY a JSON object:
-{"screen":"description","action":"click|type|key|wait","target":"what","x":0,"y":0,"text":"","key":"","reasoning":"why","at_desktop":false}
+Respond with ONLY a JSON object with exact coordinates:
+{"screen":"what you see","action":"click","target":"button name","x":CENTER_X,"y":CENTER_Y,"reasoning":"why this coordinate"}
 """
 
 # Post-OOBE initialization script path

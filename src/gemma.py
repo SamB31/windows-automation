@@ -73,12 +73,20 @@ def load_model() -> Llama:
 
 def analyze_screen(llm: Llama, screenshot_b64: str, screen_size: tuple[int, int]) -> dict:
     """Send screenshot to Gemma and get the action to perform."""
-    # System prompt baked into user message since Gemma doesn't support system role
+    w, h = screen_size
+    
+    resolution_context = (
+        f"The screen is {w}x{h} pixels. "
+        f"Coordinate system: x ranges from 0 (left) to {w} (right), "
+        f"y ranges from 0 (top) to {h} (bottom). "
+        f"Common button sizes are 100-200px wide and 30-50px tall."
+    )
+    
     prompt = (
         f"{SYSTEM_PROMPT}\n\n"
-        f"The screenshot is {screen_size[0]}x{screen_size[1]} pixels. "
-        "What do you see and what single action should I take? "
-        "Reply ONLY with a JSON object, no other text."
+        f"{resolution_context}\n\n"
+        "Look at the screenshot carefully. Identify the exact x,y pixel coordinates "
+        "where you want to click. Then respond with ONLY a JSON object."
     )
 
     image_url = f"data:image/jpeg;base64,{screenshot_b64}"
