@@ -1,0 +1,9 @@
+{
+  "UI-TARS-1.5-7B-q4_k_m.gguf": [
+    "UI-TARS-1.5-7B-q4_k_m.gguf.part0",
+    "UI-TARS-1.5-7B-q4_k_m.gguf.part1"
+  ],
+  "UI-TARS-1.5-7B-f16.mmproj": [
+    "UI-TARS-1.5-7B-f16.mmproj"
+  ]
+}
